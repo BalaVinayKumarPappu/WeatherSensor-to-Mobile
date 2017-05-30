@@ -1,0 +1,111 @@
+module WeatherSensor_to_Mobile {
+
+	type record weatherRequest {
+ 		charstring location,
+ 		charstring date,
+ 		charstring kind	
+	}
+
+	template weatherRequest FrankfurtWeekendWeatherRequest := {
+		location := "Frankfurt",
+		date := "30/05/2017",
+		kind := "actual"
+	}
+	template weatherRequest officeFrankfurtWeekendWeatherRequest := {
+		location := "Frankfurt",
+		date := "30/05/2017",
+		kind := "actual"
+	}
+	type record weatherResponse {
+		charstring location,
+		charstring date,
+		charstring kind,
+		integer temperature,
+		integer windVelocity,
+		charstring conditions		
+	}
+	
+	template weatherResponse FrankfurtResponse := {
+		location := "Frankfurt",
+		date := "30/05/2017",
+		kind := "actual",
+		temperature := (15..30),
+		windVelocity := (0..20),
+		conditions := "sunny"
+	}
+	template weatherResponse serviceFrankfurtResponse1 := {
+		location := "Frankfurt",
+		date := "30/05/2017",
+		kind := "actual",
+		temperature := 20,
+		windVelocity := 15,
+		conditions := "sunny"
+	}
+	
+	template weatherResponse serviceFrankfurtResponse2 := {
+		location := "Frankfurt",
+		date := "30/05/2017",
+		kind := "actual",
+		temperature := 200,
+		windVelocity := 15,
+		conditions := "sunny"
+	}
+	
+	type port weatherPort message {
+		in weatherResponse;
+		out weatherRequest;
+	}
+	
+	type port servicePort message{
+	  	out weatherResponse;
+		in weatherRequest;
+	}
+	
+	type component MTCType1 {
+		port weatherPort weatherOffice;	
+	}
+	
+	type component MTCType2 {
+		port servicePort weatherService;	
+	}
+	
+	function weather_Office() runs on MTCType1 {
+ 	 	alt {
+			[] weatherOffice.receive(FrankfurtResponse) {
+					setverdict(pass,"expected response received ",FrankfurtResponse)	
+				}
+			[] weatherOffice.receive {
+					setverdict(fail)
+				}
+		}
+ 	 }
+
+	function weather_Service(template weatherResponse serviceFrankfurtResponse) runs on MTCType2 {
+ 	 	alt {
+			[] weatherService.receive(FrankfurtWeekendWeatherRequest) {
+						weatherService.send(serviceFrankfurtResponse) {
+							setverdict(pass)	
+				}
+			}	
+			[] weatherService.receive {
+					setverdict(fail)
+				}
+		}
+ 	 }
+	
+	testcase testWeather(template weatherResponse serviceFrankfurtResponse) runs on MTCType1 {
+	  var MTCType2 service := MTCType2.create;
+	  
+	  connect(self:weatherOffice, service:weatherService);
+	  service.start(weather_Service(serviceFrankfurtResponse));
+	  weatherOffice.send(officeFrankfurtWeekendWeatherRequest);
+	  weather_Office();
+	  service.done;
+	  
+	}
+	
+	control {
+		execute	(testWeather(serviceFrankfurtResponse1));
+		execute	(testWeather(serviceFrankfurtResponse2));
+	}
+}
