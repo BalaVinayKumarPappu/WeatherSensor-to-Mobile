@@ -1,21 +1,27 @@
 module WeatherSensor_to_Mobile {
 
+
+
 	type record weatherRequest {
  		charstring location,
  		charstring date,
  		charstring kind	
 	}
 
-	template weatherRequest FrankfurtWeekendWeatherRequest := {
+	template weatherRequest FrankfurtWeatherRequest := {
 		location := "Frankfurt",
 		date := "30/05/2017",
 		kind := "actual"
 	}
-	template weatherRequest officeFrankfurtWeekendWeatherRequest := {
-		location := "Frankfurt",
+	
+	template weatherRequest officeFrankfurtRequestParam(charstring reqloc) := {
+		location := reqloc,
 		date := "30/05/2017",
 		kind := "actual"
-	}
+		}
+		
+	
+
 	type record weatherResponse {
 		charstring location,
 		charstring date,
@@ -25,7 +31,7 @@ module WeatherSensor_to_Mobile {
 		charstring conditions		
 	}
 	
-	template weatherResponse FrankfurtResponse := {
+	template weatherResponse FrankfurtWeatherResponse := {
 		location := "Frankfurt",
 		date := "30/05/2017",
 		kind := "actual",
@@ -33,20 +39,12 @@ module WeatherSensor_to_Mobile {
 		windVelocity := (0..20),
 		conditions := "sunny"
 	}
-	template weatherResponse serviceFrankfurtResponse1 := {
-		location := "Frankfurt",
+	
+	template weatherResponse serviceFrankfurtResponseParam(charstring resloc):= {
+		location := resloc,
 		date := "30/05/2017",
 		kind := "actual",
 		temperature := 20,
-		windVelocity := 15,
-		conditions := "sunny"
-	}
-	
-	template weatherResponse serviceFrankfurtResponse2 := {
-		location := "Frankfurt",
-		date := "30/05/2017",
-		kind := "actual",
-		temperature := 200,
 		windVelocity := 15,
 		conditions := "sunny"
 	}
@@ -71,8 +69,8 @@ module WeatherSensor_to_Mobile {
 	
 	function weather_Office() runs on MTCType1 {
  	 	alt {
-			[] weatherOffice.receive(FrankfurtResponse) {
-					setverdict(pass,"expected response received ",FrankfurtResponse)	
+			[] weatherOffice.receive(FrankfurtWeatherResponse) {
+					setverdict(pass,"expected response received ",FrankfurtWeatherResponse)	
 				}
 			[] weatherOffice.receive {
 					setverdict(fail)
@@ -82,30 +80,43 @@ module WeatherSensor_to_Mobile {
 
 	function weather_Service(template weatherResponse serviceFrankfurtResponse) runs on MTCType2 {
  	 	alt {
-			[] weatherService.receive(FrankfurtWeekendWeatherRequest) {
+			[] weatherService.receive(FrankfurtWeatherRequest) {
+			  			log("REQUEST ACCEPTED",FrankfurtWeatherRequest)
 						weatherService.send(serviceFrankfurtResponse) {
 							setverdict(pass)	
 				}
 			}	
 			[] weatherService.receive {
-					setverdict(fail)
+			  		weatherService.send(serviceFrankfurtResponse){
+						setverdict(fail)
+			  		}
 				}
 		}
  	 }
 	
-	testcase testWeather(template weatherResponse serviceFrankfurtResponse) runs on MTCType1 {
+	testcase testWeather(template weatherRequest officeFrankfurtRequest, template weatherResponse serviceFrankfurtResponse) runs on MTCType1 {
 	  var MTCType2 service := MTCType2.create;
 	  
 	  connect(self:weatherOffice, service:weatherService);
 	  service.start(weather_Service(serviceFrankfurtResponse));
-	  weatherOffice.send(officeFrankfurtWeekendWeatherRequest);
+	  weatherOffice.send(officeFrankfurtRequest);
 	  weather_Office();
 	  service.done;
 	  
 	}
 	
 	control {
-		execute	(testWeather(serviceFrankfurtResponse1));
-		execute	(testWeather(serviceFrankfurtResponse2));
+	  	var charstring newReqlocation [5] :=
+   		 {"Paris","Frankfurt","Frankfurt","Denmark","India"};
+ 		var integer i, incr := sizeof(newReqlocation);
+ 		
+ 		var charstring newReslocation [5] :=
+   		 {"Frankfurt","Frankfurt","Norway","Denmark","India"};
+ 		//var integer j, incr1 := sizeof(newReslocation);
+	  	
+	  	
+	  	for(i:=0;i< incr;i:=i+1) { 
+			execute	(testWeather(officeFrankfurtRequestParam(newReqlocation [i]),serviceFrankfurtResponseParam(newReslocation [i])));	
 	}
+}
 }
